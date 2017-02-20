@@ -1,48 +1,36 @@
-"""
-http://stackoverflow.com/questions/24666039/simple-raw-packet-sniffer-in-python
-"""
-
 import struct
 import sys,os
 import socket
 import binascii
 import pcapy
+from time import sleep
 
 def sniff():
 	rawSocket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
 	#ifconfig eth0 promisc up
 	receivedPacket = rawSocket.recv(2048)
 
-	#Ethernet Header...
-	ethernetHeader = receivedPacket[0:14]
-	ethrheader = struct.unpack("!6s6s2s", ethernetHeader)
-	destinationIP = binascii.hexlify(ethrheader[0])
-	sourceIP = binascii.hexlify(ethrheader[1])
-	protocol = binascii.hexlify(ethrheader[2])
-
-	print "Ethernet"
-	print "Destination: " + destinationIP
-	print "Source: " + sourceIP
-	print "Protocol: "+ protocol
-	print
-
-	#IP Header... 
-	ipHeader = receivedPacket[14:34]
-	ipHdr = struct.unpack("!12s4s4s", ipHeader)
-	destinationIP = socket.inet_ntoa(ipHdr[2])
-	sourceIP = socket.inet_ntoa(ipHdr[1])
-	print "IP"
-	print "Source IP: " + sourceIP
-	print "Destination IP: " + destinationIP
-	print
-
 	#TCP Header...
 	tcpHeader = receivedPacket[34:54]
-	tcpHdr = struct.unpack("!4s4s12s", tcpHeader)
-	sourcePort = socket.inet_ntoa(tcpHdr[0])
-	destinationPort = socket.inet_ntoa(tcpHdr[1])
-	print "TCP"
-	print "Source Port: " + sourcePort
-	print "Destination Port: " + destinationPort
-	print
-	print
+	try:
+		tcpHdr = struct.unpack("!4s4s12s", tcpHeader)
+		sourcePort = socket.inet_ntoa(tcpHdr[0])
+		destinationPort = socket.inet_ntoa(tcpHdr[1])
+		
+		return (sourcePort, destinationPort)
+
+	except Exception as e:
+		print "Exception"
+		return ("exception-source", "exception-destination")
+
+
+volume = {}
+count = 0
+while count < 10:
+	print count
+	(source, dest) = sniff()
+	volume[source] = volume.get(source, -1) - 1
+	volume[dest] = volume.get(dest, 1) + 1
+	count += 1
+
+print volume
