@@ -1,37 +1,46 @@
-import NetworkManager as nmg
+import struct
+import sys,os
+import socket
+import binascii
+import pcapy
+from time import time, sleep
+from datetime import datetime
 from sqlite3 import connect
-from time import sleep
 
 def sniff():
-	while True:
-		ssids = {}
+	rawSocket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
+	receivedPacket = rawSocket.recv(65565)
 
-		for dev in nmg.NetworkManager.GetDevices():
-		    if dev.DeviceType != nmg.NM_DEVICE_TYPE_WIFI:
-		        continue
+	#TCP Header...
+	tcpHeader = receivedPacket[34:54]
+	try:
+		tcpHdr = struct.unpack("!4s4s12s", tcpHeader)
+		sourcePort = socket.inet_ntoa(tcpHdr[0])
+		destinationPort = socket.inet_ntoa(tcpHdr[1])
+		return True
 
-		    # key[0] = count, key[1] = total strength
-		    aps = dev.SpecificDevice().GetAccessPoints()
-		    for ap in sorted(aps, key=lambda ap: ap.Strength):
-		        ssids[ap.Ssid] = ssids.get(ap.Ssid, [0, 0])
-		        ssids[ap.Ssid][0] += 1
-		        ssids[ap.Ssid][1] += ap.Strength
-		        if ap.Ssid == "UMBC Campus":
-		        	print ap.Ssid, ap.Frequency
+	except Exception as e:
+		return False
 
+conn = connect("traffic.sqlite")
+cur = conn.cursor()
+query = "insert into traffic values (?, ?, ?)"
 
-		ssids_list = [(key, item[0], item[1]) for key, item in ssids.iteritems()]
+days = {"Monday":1, "Tuesday":2, "Wednesday":3, "Thursday":4, "Friday":5, "Saturday":6, "Sunday":7}
+midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+epoch = time() + 300
+while time() < epoch:
+	end = time() + 10
+	packets = 0
+	while time() < end:
+		if sniff():
+			packets += 1
 
-		conn = connect("ssid.sqlite")
-		cur = conn.cursor()
-		query = "insert into signals values (?, ?, ?)"
+	curr_time = (datetime.now()-midnight).seconds
+	day = days[datetime.now().strftime("%A")]
+	print day, curr_time, packets,
+	cur.execute(query, (day, curr_time, packets))
+	conn.commit()
+	print "Added to db"
 
-		for tup in ssids_list:
-			cur.execute(query, tup)
-
-		conn.commit()
-		conn.close()
-
-		sleep(30)
-
-sniff()
+conn.close()

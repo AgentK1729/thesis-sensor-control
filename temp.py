@@ -1,38 +1,38 @@
-import struct
-import sys,os
-import socket
-import binascii
-import pcapy
-from time import time, sleep
+
+import NetworkManager as nmg
+from sqlite3 import connect
+from time import sleep
 
 def sniff():
-	rawSocket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW, socket.htons(0x0800))
-	#ifconfig eth0 promisc up
-	receivedPacket = rawSocket.recv(65565)
+	while True:
+		ssids = {}
 
-	#TCP Header...
-	tcpHeader = receivedPacket[34:54]
-	try:
-		tcpHdr = struct.unpack("!4s4s12s", tcpHeader)
-		sourcePort = socket.inet_ntoa(tcpHdr[0])
-		destinationPort = socket.inet_ntoa(tcpHdr[1])
-		
-		# return (sourcePort, destinationPort)
-		return True
+		for dev in nmg.NetworkManager.GetDevices():
+		    if dev.DeviceType != nmg.NM_DEVICE_TYPE_WIFI:
+		        continue
 
-	except Exception as e:
-		# return ("exception-source", "exception-destination")
-		return False
+		    # key[0] = count, key[1] = total strength
+		    aps = dev.SpecificDevice().GetAccessPoints()
+		    for ap in sorted(aps, key=lambda ap: ap.Strength):
+		        ssids[ap.Ssid] = ssids.get(ap.Ssid, [0, 0])
+		        ssids[ap.Ssid][0] += 1
+		        ssids[ap.Ssid][1] += ap.Strength
+		        if ap.Ssid == "UMBC Campus":
+		        	print ap.Ssid, ap.Frequency
 
 
-while True:
-	end = time() + 10
-	packets = 0
-	print "Gathering",
-	while time() < end:
-		if sniff():
-			packets += 1
+		ssids_list = [(key, item[0], item[1]) for key, item in ssids.iteritems()]
 
-	print packets
+		conn = connect("ssid.sqlite")
+		cur = conn.cursor()
+		query = "insert into signals values (?, ?, ?)"
 
-	sleep(10)
+		for tup in ssids_list:
+			cur.execute(query, tup)
+
+		conn.commit()
+		conn.close()
+
+		sleep(30)
+
+sniff()
