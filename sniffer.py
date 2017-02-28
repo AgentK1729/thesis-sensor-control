@@ -28,7 +28,7 @@ query = "insert into traffic values (?, ?, ?)"
 
 days = {"Monday":1, "Tuesday":2, "Wednesday":3, "Thursday":4, "Friday":5, "Saturday":6, "Sunday":7}
 midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-epoch = time() + 300
+epoch = time() + 1200
 while time() < epoch:
 	end = time() + 10
 	packets = 0
